@@ -1,0 +1,6 @@
+*.toml
+*.lammpstrj
+*.dat
+*.lammps 
+
+# gh repo create chem5555_md --public --source=. --remote=origin
