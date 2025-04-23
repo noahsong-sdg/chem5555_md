@@ -1,0 +1,69 @@
+# cp /mnt/c/Users/noahs/work/chem5555_Modules3-7/Module_4/REAL.in ~/chem5555/
+# cp /mnt/c/Users/noahs/work/chem5555_Modules3-7/Module_4/tip4p.mol ~/chem5555/
+# cp dump.lammpstrj /mnt/c/Users/noahs/work/chem5555_Modules3-7/Module_4
+# ~/lammps/src/lmp_serial -in REAL.in
+
+units real
+atom_style charge
+atom_modify map array
+boundary p p p
+# region box block -9 9 -9 9 -9 9 
+region box block -10 10 -10 10 -10 10
+create_box 3 box
+
+mass 1 15.9994 
+mass 2 1.008
+mass 3 1.0e-100
+
+# Keep your preferred pair style
+pair_style lj/cut/coul/long 8.0
+pair_coeff  1 1 0.1550 3.1536
+pair_coeff 2 2 0.0 1.0
+pair_coeff 3 3 0.0 1.0 
+
+# K-space style for ewald summ
+kspace_style ewald 1.0e-4
+
+# Ensure proper communication for rigid bodies
+comm_modify vel yes
+
+fix mol all property/atom mol ghost yes
+molecule water tip4p2005.mol
+create_atoms 0 random 200 34564 NULL mol water 25367 overlap 2.0
+
+# Keep your neighbor settings
+neighbor 2.0 bin
+neigh_modify delay 0 every 1 check yes exclude molecule/intra all
+
+# More aggressive minimization
+minimize 1.0e-6 1.0e-8 5000 50000
+
+# Use a very small timestep for initial stabilization
+timestep 0.01
+# Add file output for energy tracking
+fix energy all print 10 "$(step) $(etotal) $(pe) $(ke) $(temp)" file energy.txt screen no title "Step TotalEnergy PotentialEnergy KineticEnergy Temperature"
+fix integrate all rigid/small molecule langevin 100.0 100.0 50.0 2345634
+thermo_style custom step temp press etotal density pe ke 
+thermo 100
+
+# Dump trajectory for O-O RDF calculation
+dump traj all custom 100 dump.lammpstrj id type mol x y z
+
+run 1000
+
+# Gradually increase timestep
+unfix integrate
+# Keep energy output running
+timestep 0.1
+fix integrate all rigid/small molecule langevin 200.0 200.0 50.0 2345634
+run 1000
+
+# Final production run
+unfix integrate
+# Keep energy output running
+timestep 1.0
+fix integrate all rigid/small molecule langevin 300.0 300.0 100.0 2345634
+run 5000
+
+write_data tip4p-explicit.data nocoeff
+

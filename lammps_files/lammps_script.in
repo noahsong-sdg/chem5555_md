@@ -1,0 +1,61 @@
+# LAMMPS input script for LJ system
+# ignore: ~/lammps/bin/lmp -in lammps_script.in
+
+# Variables
+variable        N equal 200                # Number of particles
+variable        L equal ceil(${N}^(1.0/3)) # Box length to get ~N particles
+variable        rho equal 0.8442            # Density in LJ units
+variable        T equal 1.0                 # Temperature
+variable        steps equal 10000           # Number of steps for equilibration
+variable        prod_steps equal 50000      # Number of steps for production run
+
+# Initialization
+units           lj
+atom_style      atomic
+dimension       3
+boundary        p p p
+
+# create simulation box and atoms 
+
+# Create FCC lattice
+lattice         fcc ${rho}
+region          box block 0 ${L} 0 ${L} 0 ${L}
+create_box      1 box
+create_atoms    1 box
+
+# Define LJ potential
+pair_style      lj/cut 2.5
+pair_coeff      1 1 1.0 1.0 2.5
+
+# Define settings
+mass            1 1.0
+velocity        all create ${T} 12345
+
+# Neighbor settings
+neighbor        0.3 bin
+neigh_modify    every 1 delay 0 check yes
+
+# Define thermo output
+thermo          100
+thermo_style    custom step temp press pe ke etotal
+
+# Output settings
+dump            1 all custom 100 dump.lammpstrj id type x y z vx vy vz
+log             log.lammps
+
+# Equilibration run with velocity rescaling
+fix             1 all nve
+fix             2 all temp/rescale 100 ${T} ${T} 0.02 1.0
+run             ${steps}
+unfix           2
+
+# Production run without thermostat
+run             ${prod_steps}
+
+# Calculate RDF
+compute         rdf all rdf 100
+fix             rdf_output all ave/time 100 1 100 c_rdf[*] file rdf.txt mode vector
+
+
+
+# End of script
